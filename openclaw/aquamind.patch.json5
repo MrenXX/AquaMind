@@ -1,0 +1,31 @@
+// Merge into ~/.openclaw/openclaw.json via:
+//   openclaw config patch --file path\to\aquamind.patch.json5
+// WhatsApp allowlist + group admission: run scripts\patch-whatsapp-allowlist.ps1 (reads WHATSAPP_SELF_E164 from .env).
+
+{
+  plugins: {
+    allow: ["whatsapp", "openrouter", "memory-core"],
+  },
+  agents: {
+    defaults: {
+      // Whole-turn ceiling (tools + model); avoids indefinite hangs if upstream stalls.
+      timeoutSeconds: 180,
+      model: {
+        primary: "openrouter/minimax/minimax-m2.5:free",
+        // Per HTTP completion request to the provider (OpenRouter); aborts slow/unresponsive calls.
+        timeoutMs: 120000,
+      },
+      models: {
+        "openrouter/minimax/minimax-m2.5:free": {},
+      },
+      thinkingDefault: "minimal",
+    },
+  },
+  // Group chats: only text matching these patterns counts as a ping (plus WhatsApp native @ of the linked account).
+  messages: {
+    groupChat: {
+      mentionPatterns: ["@clanker\\b"],
+      historyLimit: 50,
+    },
+  },
+}
