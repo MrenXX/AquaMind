@@ -7,26 +7,27 @@ import re
 from collections.abc import Iterator
 
 import httpx
-
-from backend import analytics
-from backend.chat_data import (
-    execute_plan,
-    openrouter_chat as openrouter_chat_planner,
-    parse_plan_json,
-    planner_messages,
-    sqlite_first_enabled,
-)
-from backend.config import db_path
-from backend.db import get_connection
-from backend.env_load import load_repo_env
+from dotenv import load_dotenv
 from fastapi import APIRouter, HTTPException
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel, Field
 
+from backend.config import repo_root
+from backend.intent import routing_tier
+from backend.openrouter_client import (
+    codegen_chain_for_tier,
+    openrouter_completion,
+    openrouter_completion_chain,
+)
+from backend.router_gate import Tier, tier_to_primary_slug
 
-MODEL = os.environ.get("AQUAMIND_OPENROUTER_MODEL", "minimax/minimax-m2.5:free")
-OPENROUTER_URL = "https://openrouter.ai/api/v1/chat/completions"
 REMOTE_PNG = "/home/daytona/aquamind_chart.png"
+# Models sometimes pick a different path; try these after a successful run.
+_FALLBACK_PNG_PATHS = (
+    "/home/daytona/aquamind_chart.png",
+    "/home/daytona/aquamind_proof.png",
+    "/home/daytona/chart.png",
+)
 MAX_REPAIRS = 3
 
 router = APIRouter()
@@ -48,30 +49,103 @@ def _strip_code_fence(text: str) -> str:
     return cleaned.strip()
 
 
-def _openrouter_chat(api_key: str, messages: list[dict[str, str]]) -> str:
-    response = httpx.post(
-        OPENROUTER_URL,
-        headers={
-            "Authorization": f"Bearer {api_key}",
-            "Content-Type": "application/json",
-            "HTTP-Referer": "http://localhost",
-            "X-Title": "AquaMind WaterSec Dashboard",
-        },
-        json={"model": MODEL, "messages": messages},
-        timeout=120.0,
+def _conversational_system() -> str:
+    return (
+        "You are AquaMind, the WaterSec operations copilot. Reply in clear, friendly plain text. "
+        "Do not output Python, SQL, or JSON unless the user explicitly asks for it. "
+        "Do not invent telemetry numbers; suggest they ask a concrete data question if they need metrics."
     )
-    response.raise_for_status()
-    payload = response.json()
-    message = payload["choices"][0]["message"]
-    return (message.get("content") or "").strip()
+
+
+def _messages_for_conversational(prompt: str) -> list[dict[str, str]]:
+    return [
+        {"role": "system", "content": _conversational_system()},
+        {"role": "user", "content": prompt},
+    ]
+
+
+def _stream_conversational_fast(openrouter_key: str, prompt: str) -> Iterator[str]:
+    """Tier fast: plain text only, no Daytona."""
+    tier: Tier = "fast"
+    slug_preview = tier_to_primary_slug(tier)
+    yield _sse(
+        "status",
+        {
+            "step": "routing",
+            "tier": tier,
+            "intent": "conversational",
+            "tier_primary_model": slug_preview,
+            "message": "Heuristic routing: conversational (plain text, no sandbox).",
+        },
+    )
+    yield _sse("status", {"step": "model", "message": "Generating reply…", "tier": tier})
+    try:
+        raw, used_slug = openrouter_completion(
+            openrouter_key,
+            _messages_for_conversational(prompt),
+            role="chat",
+            x_title="AquaMind WaterSec Chat",
+        )
+    except (RuntimeError, httpx.HTTPStatusError) as exc:
+        yield _sse("status", {"step": "model", "message": str(exc), "error": True, "tier": tier})
+        yield _sse("done", {"success": False, "attempts": 0, "error": type(exc).__name__, "tier": tier})
+        return
+    yield _sse(
+        "status",
+        {
+            "step": "model",
+            "message": f"Reply ready ({used_slug}).",
+            "openrouter_model": used_slug,
+            "tier": tier,
+        },
+    )
+    yield _sse("model_output", {"raw": raw, "openrouter_model": used_slug, "tier": tier})
+    yield _sse(
+        "code",
+        {"source": "# heuristic: conversational — no Python executed.\n"},
+    )
+    yield _sse("status", {"step": "sandbox", "message": "Skipped sandbox (conversational).", "tier": tier})
+    yield _sse(
+        "sandbox_result",
+        {
+            "sandbox_id": "intent:conversational",
+            "exit_code": 0,
+            "stdout": json.dumps({"intent": "conversational", "tier": tier}, ensure_ascii=False),
+            "chart_artifacts": [],
+            "png_base64": None,
+        },
+    )
+    yield _sse(
+        "done",
+        {"success": True, "attempts": 1, "openrouter_model": used_slug, "tier": tier, "intent": "conversational"},
+    )
+
+
+def _openrouter_chat_code(
+    api_key: str,
+    messages: list[dict[str, str]],
+    *,
+    tier: Tier,
+) -> tuple[str, str]:
+    """Codegen: tier primary (LFM / Qwen / MiniMax via env), then standard code-role fallbacks."""
+    chain = codegen_chain_for_tier(tier)
+    return openrouter_completion_chain(
+        api_key,
+        messages,
+        model_chain=chain,
+        x_title="AquaMind WaterSec Dashboard",
+    )
 
 
 def _system_prompt() -> str:
     return (
         "You generate Python 3 code for the AquaMind WaterSec dashboard. "
         "Return ONLY executable Python source code, with no markdown fences and no commentary. "
+        "Do not write any preamble, explanation, or 'Here is the code' — the first character must start the program. "
         "Print useful progress or results to stdout. "
-        f"If the user asks for a chart or visual artifact, save a PNG to {REMOTE_PNG}. "
+        "If the user asks for any chart, plot, or image: use matplotlib, call "
+        f"plt.savefig('{REMOTE_PNG}', dpi=120, bbox_inches='tight') before plt.close(), "
+        "and ensure that exact path string appears in the code. "
         "Do not require stdin, local private files, network access, or credentials."
     )
 
@@ -114,17 +188,48 @@ def _daytona_client():
     return Daytona(DaytonaConfig(**kwargs))
 
 
-def _chart_artifacts(resp) -> list[dict[str, str]]:
+def _chart_artifacts(resp) -> list[dict]:
     artifacts = getattr(resp, "artifacts", None)
     charts = getattr(artifacts, "charts", None) if artifacts else None
     if not charts:
         return []
-    out: list[dict[str, str]] = []
+    out: list[dict] = []
     for chart in charts:
         chart_type = getattr(chart, "type", None) or getattr(chart, "chart_type", None) or "chart"
         title = getattr(chart, "title", None) or "Untitled chart"
-        out.append({"type": str(chart_type), "title": str(title)})
+        row: dict = {"type": str(chart_type), "title": str(title)}
+        for attr in (
+            "labels",
+            "values",
+            "data",
+            "series",
+            "x",
+            "y",
+            "categories",
+        ):
+            v = getattr(chart, attr, None)
+            if v is None:
+                continue
+            if hasattr(v, "tolist"):
+                try:
+                    v = v.tolist()
+                except Exception:
+                    continue
+            if isinstance(v, (list, tuple)):
+                row[attr] = list(v)
+        out.append(row)
     return out
+
+
+def _first_png_bytes(sandbox) -> bytes | None:
+    for path in _FALLBACK_PNG_PATHS:
+        try:
+            png = sandbox.fs.download_file(path)
+            if png and len(png) > 200:
+                return png
+        except Exception:
+            continue
+    return None
 
 
 def _run_daytona(code: str) -> dict:
@@ -133,13 +238,10 @@ def _run_daytona(code: str) -> dict:
     try:
         resp = sandbox.process.code_run(code, timeout=180)
         exit_code = resp.exit_code if resp.exit_code is not None else -1
-        png_base64 = None
-        try:
-            png = sandbox.fs.download_file(REMOTE_PNG)
-            if png:
-                png_base64 = base64.standard_b64encode(png).decode("ascii")
-        except Exception:
-            png_base64 = None
+        png_raw = _first_png_bytes(sandbox)
+        png_base64 = (
+            base64.standard_b64encode(png_raw).decode("ascii") if png_raw else None
+        )
         return {
             "sandbox_id": sandbox.id,
             "exit_code": exit_code,
@@ -151,88 +253,113 @@ def _run_daytona(code: str) -> dict:
         sandbox.delete()
 
 
-def _stream_run(prompt: str) -> Iterator[str]:
-    load_repo_env()
+def _model_output_for_daytona_codegen(
+    raw: str,
+    *,
+    openrouter_model: str,
+    tier: Tier,
+    attempt: int,
+) -> dict:
+    """Chat must not show raw Python; full draft lives in ``model_generation_full`` for Expert UI."""
+    body = _strip_code_fence(raw)
+    n = len(body)
+    summary = (
+        f"Python for this run is ready ({n} characters). "
+        "Open the **Script** card to view or copy code; **Run output** shows stdout, tables, and exports."
+    )
+    return {
+        "raw": summary,
+        "model_generation_full": raw,
+        "surface": "run_panels",
+        "openrouter_model": openrouter_model,
+        "tier": tier,
+        "attempt": attempt,
+        "code_char_count": n,
+    }
 
-    openrouter_key = os.environ.get("OPENROUTER_API_KEY", "").strip()
+
+def _stream_run(prompt: str) -> Iterator[str]:
+    load_dotenv(repo_root() / ".env")
+
+    openrouter_key = (os.environ.get("OPENROUTER_API_KEY") or "").strip()
     if not openrouter_key:
         yield _sse(
             "status",
             {
                 "step": "model",
-                "message": "Server misconfiguration: set OPENROUTER_API_KEY in repo `.env` or `env` file, then restart the backend.",
+                "message": "Server misconfiguration: set OPENROUTER_API_KEY in WaterSec-OpenClaw-.env",
             },
         )
         yield _sse("done", {"success": False, "attempts": 0})
         return
 
-    if sqlite_first_enabled():
-        yield _sse(
-            "status",
-            {"step": "sqlite", "message": "Planning query against WaterSec SQLite (real telemetry)..."},
-        )
-        try:
-            plan_raw = openrouter_chat_planner(openrouter_key, planner_messages(prompt))
-            yield _sse("model_output", {"raw": plan_raw})
-            plan = parse_plan_json(plan_raw)
-            if plan and plan.get("route") == "daytona":
-                raise RuntimeError("planner chose daytona")
-            if not plan or "route" not in plan:
-                raise RuntimeError("planner did not return valid JSON with route")
+    tier: Tier = routing_tier(prompt)
+    if tier == "fast":
+        yield from _stream_conversational_fast(openrouter_key, prompt)
+        return
 
-            yield _sse("code", {"source": json.dumps(plan, indent=2, ensure_ascii=False)})
-            yield _sse(
-                "status",
-                {"step": "sandbox", "message": "Running on WaterSec SQLite (server, trusted analytics)..."},
-            )
-
-            with get_connection() as conn:
-                tool_resp = execute_plan(conn, plan)
-            analytics.record_tool_trace(f"chat_sqlite:{plan['route']}", plan, tool_resp)
-
-            out_text = json.dumps(tool_resp.model_dump(), indent=2, ensure_ascii=False)
-            yield _sse(
-                "sandbox_result",
-                {
-                    "sandbox_id": "sqlite:local",
-                    "exit_code": 0,
-                    "stdout": out_text,
-                    "chart_artifacts": [],
-                    "png_base64": None,
-                },
-            )
-            yield _sse("done", {"success": True, "attempts": 1})
-            return
-        except Exception as exc:  # noqa: BLE001
-            if not db_path().is_file():
-                yield _sse(
-                    "status",
-                    {
-                        "step": "sqlite",
-                        "message": f"SQLite path skipped (no database at {db_path()}). Build with: python scripts\\etl\\build_database.py",
-                    },
-                )
-            else:
-                yield _sse(
-                    "status",
-                    {
-                        "step": "sqlite",
-                        "message": f"SQLite planner/execute failed ({type(exc).__name__}: {exc}). Falling back to Daytona code generation.",
-                    },
-                )
+    tier_slug = tier_to_primary_slug(tier)
+    codegen_preview = codegen_chain_for_tier(tier)
+    yield _sse(
+        "status",
+        {
+            "step": "routing",
+            "tier": tier,
+            "intent": "data",
+            "tier_primary_model": tier_slug,
+            "codegen_chain": codegen_preview[:6],
+            "message": (
+                f"Heuristic routing: tier={tier}, primary={tier_slug} "
+                f"(regex + length → model chain + Daytona)."
+            ),
+        },
+    )
 
     messages = _messages_for_prompt(prompt)
     last_code = ""
     last_error = ""
 
     for attempt in range(1, MAX_REPAIRS + 1):
-        yield _sse("status", {"step": "model", "message": "Prompting MiniMax via OpenRouter..."})
+        yield _sse(
+            "status",
+            {
+                "step": "model",
+                "message": f"Codegen (tier={tier}); model chain …",
+                "tier": tier,
+            },
+        )
 
-        raw = _openrouter_chat(openrouter_key, messages)
-        yield _sse("model_output", {"raw": raw})
+        try:
+            raw, used_slug = _openrouter_chat_code(openrouter_key, messages, tier=tier)
+        except (RuntimeError, httpx.HTTPStatusError) as exc:
+            yield _sse(
+                "status",
+                {"step": "model", "message": str(exc), "error": True},
+            )
+            yield _sse(
+                "done",
+                {"success": False, "attempts": attempt, "error": type(exc).__name__, "tier": tier},
+            )
+            return
+        yield _sse(
+            "status",
+            {
+                "step": "model",
+                "message": f"Generation complete ({used_slug}).",
+                "openrouter_model": used_slug,
+                "tier": tier,
+            },
+        )
+        yield _sse(
+            "model_output",
+            _model_output_for_daytona_codegen(raw, openrouter_model=used_slug, tier=tier, attempt=attempt),
+        )
 
         last_code = _strip_code_fence(raw)
-        yield _sse("code", {"source": last_code})
+        yield _sse(
+            "code",
+            {"source": last_code, "surface": "run_panels", "for_chat": False},
+        )
 
         yield _sse("status", {"step": "sandbox", "message": "Running in Daytona sandbox..."})
 
@@ -250,7 +377,10 @@ def _stream_run(prompt: str) -> Iterator[str]:
         yield _sse("sandbox_result", result)
 
         if result["exit_code"] == 0:
-            yield _sse("done", {"success": True, "attempts": attempt})
+            yield _sse(
+                "done",
+                {"success": True, "attempts": attempt, "openrouter_model": used_slug, "tier": tier},
+            )
             return
 
         last_error = result.get("stdout") or f"exit_code={result['exit_code']}"
@@ -258,7 +388,7 @@ def _stream_run(prompt: str) -> Iterator[str]:
             yield _sse("repair", {"attempt": attempt, "max": MAX_REPAIRS, "error": last_error})
             messages = _messages_for_repair(prompt, last_code, last_error)
 
-    yield _sse("done", {"success": False, "attempts": MAX_REPAIRS})
+    yield _sse("done", {"success": False, "attempts": MAX_REPAIRS, "tier": tier})
 
 
 @router.post("/run")

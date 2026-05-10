@@ -2,10 +2,6 @@ from __future__ import annotations
 
 import os
 
-from backend.env_load import load_repo_env
-
-load_repo_env()
-
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 
@@ -13,6 +9,9 @@ from backend import analytics
 from backend.chat import router as chat_router
 from backend.config import db_path
 from backend.db import get_connection
+from backend.openrouter_client import describe_model_config
+from backend.intent import routing_health
+from backend.router_gate import tier_slugs_health
 from backend.models import (
     CompareSourcesBody,
     DetectAnomaliesBody,
@@ -28,10 +27,6 @@ app = FastAPI(title="AquaMind Analytics API", version="0.1.0")
 _DEFAULT_DEV_ORIGINS = [
     "http://localhost:5173",
     "http://127.0.0.1:5173",
-    "http://localhost:5174",
-    "http://127.0.0.1:5174",
-    "http://localhost:3000",
-    "http://127.0.0.1:3000",
     "http://localhost:4173",
     "http://127.0.0.1:4173",
 ]
@@ -80,6 +75,9 @@ def health() -> dict:
         "db_path": str(p),
         "db_exists": exists,
         "gmail": _gmail_ready(),
+        "openrouter_roles": describe_model_config(),
+        "routing": routing_health(),
+        "tier_slugs": tier_slugs_health(),
     }
     if not exists:
         out["hint"] = "Run: python scripts\\etl\\build_database.py"

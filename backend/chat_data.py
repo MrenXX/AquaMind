@@ -6,15 +6,19 @@ import json
 import os
 import re
 import sqlite3
-from typing import Any
+from typing import Any, TYPE_CHECKING
 
-import httpx
 from backend import analytics, models
 from backend.config import db_path
+from backend.openrouter_client import (
+    openrouter_completion,
+    openrouter_completion_chain,
+    planner_chain_for_tier,
+)
 from backend.sql_guard import validate_readonly_sql
 
-MODEL = os.environ.get("AQUAMIND_OPENROUTER_MODEL", "minimax/minimax-m2.5:free")
-OPENROUTER_URL = "https://openrouter.ai/api/v1/chat/completions"
+if TYPE_CHECKING:
+    from backend.router_gate import Tier
 
 
 def _planner_system() -> str:
@@ -48,29 +52,37 @@ Prefer routes 1–5. Use customer_profile "gym" for gym data, "customerC" for re
 If the user is vague, pick reasonable defaults: use_trusted true, group_by device, limit 20."""
 
 
+def openrouter_chat(
+    api_key: str,
+    messages: list[dict[str, str]],
+    *,
+    x_title: str = "AquaMind WaterSec SQLite planner",
+    tier: "Tier | None" = None,
+) -> str:
+    """Planner completion; pass ``tier`` when callers already ran tier routing (e.g. full /run)."""
+    if tier is not None:
+        chain = planner_chain_for_tier(tier)
+        text, _slug = openrouter_completion_chain(
+            api_key,
+            messages,
+            model_chain=chain,
+            x_title=x_title,
+        )
+        return text
+    text, _slug = openrouter_completion(
+        api_key,
+        messages,
+        role="planner",
+        x_title=x_title,
+    )
+    return text
+
+
 def planner_messages(user_prompt: str) -> list[dict[str, str]]:
     return [
         {"role": "system", "content": _planner_system()},
         {"role": "user", "content": user_prompt},
     ]
-
-
-def openrouter_chat(api_key: str, messages: list[dict[str, str]]) -> str:
-    response = httpx.post(
-        OPENROUTER_URL,
-        headers={
-            "Authorization": f"Bearer {api_key}",
-            "Content-Type": "application/json",
-            "HTTP-Referer": "http://localhost",
-            "X-Title": "AquaMind WaterSec SQLite planner",
-        },
-        json={"model": MODEL, "messages": messages},
-        timeout=120.0,
-    )
-    response.raise_for_status()
-    payload = response.json()
-    message = payload["choices"][0]["message"]
-    return (message.get("content") or "").strip()
 
 
 def _strip_code_fence(text: str) -> str:

@@ -17,7 +17,7 @@ OpenClaw stores live config in `%USERPROFILE%\.openclaw\openclaw.json`. This rep
    npm install @openclaw/whatsapp@2026.5.7 --prefix "$env:USERPROFILE\.openclaw\npm"
    ```
 
-3. **Merge AquaMind defaults** (MiniMax via OpenRouter + `plugins.allow` + agent timeouts):
+3. **Merge AquaMind defaults** (OpenRouter model chain + `plugins.allow` + agent timeouts):
 
    ```powershell
    cd <your-repo-root>
@@ -38,7 +38,7 @@ OpenClaw stores live config in `%USERPROFILE%\.openclaw\openclaw.json`. This rep
 
    Use the same bypass or policy for `patch-whatsapp-allowlist.ps1` and `start-watersec-openclaw-gateway.ps1`.
 
-   This sets **`agents.defaults.timeoutSeconds`** (whole agent turn), **`agents.defaults.model.timeoutMs`** (per provider HTTP completion), **`agents.defaults.model.fallbacks`** (free-model chain if MiniMax fails), and **`agents.defaults.params.extra_body.provider.sort: "latency"`** so OpenRouter prefers low-latency endpoints. **`agents.list`** enables **`fastModeDefault`** on `main`. Restart the gateway after patching.
+   This sets **`agents.defaults.timeoutSeconds`** (whole agent turn), **`agents.defaults.model.timeoutMs`** (per provider HTTP completion), and **`agents.defaults.model`** to **`primary: Qwen`** with **`fallbacks: [MiniMax, LFM]`** — the same three free models as the WaterSec FastAPI **`/run`** tier fallbacks (OpenClaw cannot pick a different primary per message from JSON alone; the chain mirrors **balanced → heavy → fast** escalation when upstream errors or rate limits). It also sets **`plugins.allow`**, **`messages.groupChat`**, and **`agents.defaults.params.extra_body.provider.sort: "latency"`**. **`agents.list`** enables **`fastModeDefault`** on `main`. Restart the gateway after patching.
 
 4. **WhatsApp allowlist** (team numbers + your own):
 
@@ -91,7 +91,7 @@ Restart after **any** `openclaw config patch`: **`openclaw gateway stop`**, then
 
 ### Trace stops at `attempt-dispatch` / gateway “frozen” for many minutes
 
-Usually the **model request** (OpenRouter → MiniMax free, or whichever primary you set in **`aquamind.patch.json5`**) never completes—slow queue, rate limits, or a stalled HTTP connection. The AquaMind patch caps **`agents.defaults.model.timeoutMs`** (per request) and **`agents.defaults.timeoutSeconds`** (full turn including tools) and sets **`fastModeDefault`** on the `main` agent. **If stalls exceed those limits**, check OpenClaw gateway logs—some builds do not surface timeouts the same on every path. After merging the patch, **restart the gateway**. If replies still fail often, try another model or check **`OPENROUTER_API_KEY`** and OpenRouter status.
+Usually the **model request** (OpenRouter → **Qwen** primary in **`aquamind.patch.json5`**, then MiniMax/LFM fallbacks) never completes—slow queue, rate limits, or a stalled HTTP connection. The AquaMind patch caps **`agents.defaults.model.timeoutMs`** (per request) and **`agents.defaults.timeoutSeconds`** (full turn including tools) and sets **`fastModeDefault`** on the `main` agent. **If stalls exceed those limits**, check OpenClaw gateway logs—some builds do not surface timeouts the same on every path. After merging the patch, **restart the gateway**. If replies still fail often, try another model or check **`OPENROUTER_API_KEY`** and OpenRouter status.
 
 ### `openclaw gateway stop` says “Gateway service missing”
 
