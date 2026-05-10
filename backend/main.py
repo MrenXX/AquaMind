@@ -1,14 +1,10 @@
 from __future__ import annotations
 
 import os
-from pathlib import Path
 
-try:
-    from dotenv import load_dotenv
+from backend.env_load import load_repo_env
 
-    load_dotenv(Path(__file__).resolve().parent.parent / ".env")
-except ImportError:
-    pass
+load_repo_env()
 
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware

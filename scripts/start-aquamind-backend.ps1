@@ -6,9 +6,9 @@ $ErrorActionPreference = "Stop"
 $repoRoot = Split-Path -Parent $PSScriptRoot
 Set-Location $repoRoot
 
-$envFile = Join-Path $repoRoot ".env"
-if (Test-Path $envFile) {
-  Get-Content $envFile | ForEach-Object {
+function Import-DotEnvFile([string]$Path) {
+  if (-not (Test-Path $Path)) { return }
+  Get-Content $Path | ForEach-Object {
     if ($_ -match '^\s*#' -or $_ -match '^\s*$') { return }
     $kv = $_ -split '=', 2
     if ($kv.Length -eq 2) {
@@ -18,6 +18,8 @@ if (Test-Path $envFile) {
     }
   }
 }
+Import-DotEnvFile (Join-Path $repoRoot ".env")
+Import-DotEnvFile (Join-Path $repoRoot "env")
 
 if (-not (Test-Path ".\.venv\Scripts\python.exe")) {
   Write-Error "Missing .venv. Create venv and install requirements-backend.txt"

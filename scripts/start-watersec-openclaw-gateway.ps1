@@ -2,9 +2,9 @@
 # Keep this window open while testing WhatsApp.
 $ErrorActionPreference = "Stop"
 $repoRoot = Split-Path -Parent $PSScriptRoot
-$envFile = Join-Path $repoRoot ".env"
-if (Test-Path $envFile) {
-  Get-Content $envFile | ForEach-Object {
+function Import-DotEnvFile([string]$Path) {
+  if (-not (Test-Path $Path)) { return }
+  Get-Content $Path | ForEach-Object {
     if ($_ -match '^\s*#' -or $_ -match '^\s*$') { return }
     $kv = $_ -split '=', 2
     if ($kv.Length -eq 2) {
@@ -14,5 +14,7 @@ if (Test-Path $envFile) {
     }
   }
 }
+Import-DotEnvFile (Join-Path $repoRoot ".env")
+Import-DotEnvFile (Join-Path $repoRoot "env")
 Write-Host "Starting OpenClaw gateway (Ctrl+C to stop). Ensure WhatsApp linked via: openclaw channels login --channel whatsapp"
 openclaw gateway run
