@@ -7,6 +7,17 @@ import re
 from collections.abc import Iterator
 
 import httpx
+
+from backend import analytics
+from backend.chat_data import (
+    execute_plan,
+    openrouter_chat as openrouter_chat_planner,
+    parse_plan_json,
+    planner_messages,
+    sqlite_first_enabled,
+)
+from backend.config import db_path
+from backend.db import get_connection
 from backend.env_load import load_repo_env
 from fastapi import APIRouter, HTTPException
 from fastapi.responses import StreamingResponse
@@ -154,6 +165,61 @@ def _stream_run(prompt: str) -> Iterator[str]:
         )
         yield _sse("done", {"success": False, "attempts": 0})
         return
+
+    if sqlite_first_enabled():
+        yield _sse(
+            "status",
+            {"step": "sqlite", "message": "Planning query against WaterSec SQLite (real telemetry)..."},
+        )
+        try:
+            plan_raw = openrouter_chat_planner(openrouter_key, planner_messages(prompt))
+            yield _sse("model_output", {"raw": plan_raw})
+            plan = parse_plan_json(plan_raw)
+            if plan and plan.get("route") == "daytona":
+                raise RuntimeError("planner chose daytona")
+            if not plan or "route" not in plan:
+                raise RuntimeError("planner did not return valid JSON with route")
+
+            yield _sse("code", {"source": json.dumps(plan, indent=2, ensure_ascii=False)})
+            yield _sse(
+                "status",
+                {"step": "sandbox", "message": "Running on WaterSec SQLite (server, trusted analytics)..."},
+            )
+
+            with get_connection() as conn:
+                tool_resp = execute_plan(conn, plan)
+            analytics.record_tool_trace(f"chat_sqlite:{plan['route']}", plan, tool_resp)
+
+            out_text = json.dumps(tool_resp.model_dump(), indent=2, ensure_ascii=False)
+            yield _sse(
+                "sandbox_result",
+                {
+                    "sandbox_id": "sqlite:local",
+                    "exit_code": 0,
+                    "stdout": out_text,
+                    "chart_artifacts": [],
+                    "png_base64": None,
+                },
+            )
+            yield _sse("done", {"success": True, "attempts": 1})
+            return
+        except Exception as exc:  # noqa: BLE001
+            if not db_path().is_file():
+                yield _sse(
+                    "status",
+                    {
+                        "step": "sqlite",
+                        "message": f"SQLite path skipped (no database at {db_path()}). Build with: python scripts\\etl\\build_database.py",
+                    },
+                )
+            else:
+                yield _sse(
+                    "status",
+                    {
+                        "step": "sqlite",
+                        "message": f"SQLite planner/execute failed ({type(exc).__name__}: {exc}). Falling back to Daytona code generation.",
+                    },
+                )
 
     messages = _messages_for_prompt(prompt)
     last_code = ""

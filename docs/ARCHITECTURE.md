@@ -48,6 +48,7 @@ flowchart LR
 
 - **User** talks on WhatsApp → **OpenClaw** runs the agent → **MiniMax** decides which tool to call.
 - **Telemetry numbers** (aggregates, comparisons, motifs, anomaly rows, guarded SQL) must come from the **FastAPI** service reading **`data/aquamind.sqlite`**, not from the model guessing over raw CSV text.
+- **Dashboard `POST /run` (SSE):** when `data/aquamind.sqlite` exists and `AQUAMIND_CHAT_SQLITE_FIRST` is not `false`, the server first asks OpenRouter for a **JSON tool plan** (`query_metrics`, `compare_sources`, `find_motifs`, `detect_anomalies`, or guarded `run_sql`), then **executes it on SQLite** and streams the same SSE shape (`sandbox_id` `sqlite:local`, `stdout` = full `ToolResponse` JSON). Only if that fails or the planner returns `"route":"daytona"` does it fall back to **Daytona Python** generation.
 - **Charts / matplotlib** run in **Daytona** via `scripts/aquamind_daytona_runner_cli.py` (sandbox), not inside FastAPI unless you add that later.
 - **Gmail** is still the existing **CLI** (`scripts/aquamind_gmail_report_cli.py`); FastAPI `/health` only reports whether Gmail-related env vars look set.
 
@@ -79,7 +80,8 @@ The agent’s behavior is governed by **`AGENTS.md`** + **`TOOLS.md`** in that l
 | `GMAIL_*` | Gmail CLI OAuth paths and sender/recipient. |
 | `AQUAMIND_DB_PATH` | Optional override path to `aquamind.sqlite`. |
 | `AQUAMIND_API_BASE` | Optional; agent docs default to `http://127.0.0.1:8765` if unset. |
-| `AQUAMIND_CORS_ORIGINS` | Comma list for FastAPI CORS (default `*`). |
+| `AQUAMIND_CORS_ORIGINS` | Comma list for FastAPI CORS (defaults include common Vite dev ports). |
+| `AQUAMIND_CHAT_SQLITE_FIRST` | If `true` (default), `POST /run` prefers real SQLite tool plans before Daytona. |
 
 See [`.env.example`](../.env.example) for the full list.
 
