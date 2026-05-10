@@ -2,6 +2,8 @@
 
 If you are pointed at this **repository branch** (for example `feature/sqlite-fastapi-backend`), treat this file as the **single onboarding map**. Read it first, then follow the linked docs in order.
 
+If you only have a **copy** of `AGENTS.md` / `TOOLS.md` under `%USERPROFILE%\.openclaw\workspace\`, open this same document from your **git clone**: `docs/ARCHITECTURE.md` at the repo root (relative links inside copied templates assume the repo tree).
+
 ## Reading order (minimum context to implement or extend)
 
 1. This file (`docs/ARCHITECTURE.md`) — end-to-end flow and responsibilities.
