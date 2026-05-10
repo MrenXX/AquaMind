@@ -13,7 +13,7 @@ if (Test-Path $envFile) {
   }
 }
 
-$allow = [System.Collections.ArrayList]@("+21658526779", "+21693779303")
+$allow = [System.Collections.ArrayList]@("+21658628797", "+21693779303", "+21651377789")
 if ($self -and $self -notmatch "REPLACE|XXXX|YOUR") {
   [void]$allow.Add($self.Trim())
 }

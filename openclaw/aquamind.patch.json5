@@ -1,6 +1,6 @@
 // Merge into ~/.openclaw/openclaw.json via:
 //   openclaw config patch --file path\to\aquamind.patch.json5
-// WhatsApp allowlist + group admission: run scripts\patch-whatsapp-allowlist.ps1 (reads WHATSAPP_SELF_E164 from .env).
+// WhatsApp allowlist + group admission: run scripts\patch-whatsapp-allowlist.ps1 (also reads WHATSAPP_SELF_E164 from .env).
 
 {
   plugins: {
@@ -10,16 +10,45 @@
     defaults: {
       // Whole-turn ceiling (tools + model); avoids indefinite hangs if upstream stalls.
       timeoutSeconds: 180,
+      // OpenRouter: prefer low-latency endpoints (see OpenRouter provider routing docs).
+      params: {
+        extra_body: {
+          provider: {
+            sort: "latency",
+          },
+        },
+      },
       model: {
         primary: "openrouter/minimax/minimax-m2.5:free",
+        fallbacks: [
+          "openrouter/openai/gpt-oss-120b:free",
+          "openrouter/qwen/qwen3-next-80b-a3b-instruct:free",
+          "openrouter/nvidia/nemotron-3-super-120b-a12b:free",
+          "openrouter/google/gemma-4-31b-it:free",
+          "openrouter/openai/gpt-oss-20b:free",
+          "openrouter/liquid/lfm-2.5-1.2b-instruct:free",
+        ],
         // Per HTTP completion request to the provider (OpenRouter); aborts slow/unresponsive calls.
         timeoutMs: 120000,
       },
       models: {
         "openrouter/minimax/minimax-m2.5:free": {},
+        "openrouter/openai/gpt-oss-120b:free": {},
+        "openrouter/qwen/qwen3-next-80b-a3b-instruct:free": {},
+        "openrouter/nvidia/nemotron-3-super-120b-a12b:free": {},
+        "openrouter/google/gemma-4-31b-it:free": {},
+        "openrouter/openai/gpt-oss-20b:free": {},
+        "openrouter/liquid/lfm-2.5-1.2b-instruct:free": {},
       },
       thinkingDefault: "minimal",
     },
+    list: [
+      {
+        id: "main",
+        default: true,
+        fastModeDefault: true,
+      },
+    ],
   },
   // Group chats: only text matching these patterns counts as a ping (plus WhatsApp native @ of the linked account).
   messages: {

@@ -24,7 +24,7 @@ OpenClaw stores live config in `%USERPROFILE%\.openclaw\openclaw.json`. This rep
    .\scripts\apply-openclaw-aquamind-patch.ps1
    ```
 
-   This sets **`agents.defaults.timeoutSeconds`** (whole agent turn) and **`agents.defaults.model.timeoutMs`** (per provider HTTP completion) so a stuck OpenRouter/free-tier call cannot hang the gateway indefinitely.
+   This sets **`agents.defaults.timeoutSeconds`** (whole agent turn), **`agents.defaults.model.timeoutMs`** (per provider HTTP completion), **`agents.defaults.model.fallbacks`** (free-model chain if MiniMax fails), and **`agents.defaults.params.extra_body.provider.sort: "latency"`** so OpenRouter prefers low-latency endpoints. **`agents.list`** enables **`fastModeDefault`** on `main`. Restart the gateway after patching.
 
 4. **WhatsApp allowlist** (team numbers + your own):
 
@@ -35,7 +35,7 @@ OpenClaw stores live config in `%USERPROFILE%\.openclaw\openclaw.json`. This rep
    .\scripts\patch-whatsapp-allowlist.ps1
    ```
 
-   This merges **+21658526779**, **+21693779303**, and your `WHATSAPP_SELF_E164` into `channels.whatsapp.allowFrom` with **`dmPolicy: allowlist`**. It also sets **`groupPolicy: allowlist`**, **`groups["*"].requireMention: true`**, and uses your DM allowlist as the group sender allowlist (OpenClaw falls back from `groupAllowFrom` to **`allowFrom`** when `groupAllowFrom` is omitted).
+   This merges **+21658628797**, **+21693779303**, **+21651377789**, and optional `WHATSAPP_SELF_E164` into `channels.whatsapp.allowFrom` with **`dmPolicy: allowlist`**. It also sets **`groupPolicy: allowlist`**, **`groups["*"].requireMention: true`**, and uses your DM allowlist as the group sender allowlist (OpenClaw falls back from `groupAllowFrom` to **`allowFrom`** when `groupAllowFrom` is omitted).
 
 5. **API keys** — set `OPENROUTER_API_KEY` and `DAYTONA_API_KEY` in `.env`; start the gateway via `scripts\start-watersec-openclaw-gateway.ps1` so keys load without printing the file.
 
@@ -77,7 +77,7 @@ Restart after **any** `openclaw config patch`: **`openclaw gateway stop`**, then
 
 ### Trace stops at `attempt-dispatch` / gateway “frozen” for many minutes
 
-Usually the **model request** (OpenRouter → MiniMax free) never completes—slow queue, rate limits, or a stalled HTTP connection. The AquaMind patch caps **`agents.defaults.model.timeoutMs`** (per request) and **`agents.defaults.timeoutSeconds`** (full turn including tools). After merging the patch, **restart the gateway**. If replies still fail often, try another model or check **`OPENROUTER_API_KEY`** and OpenRouter status.
+Usually the **model request** (OpenRouter → MiniMax free, or whichever primary you set in **`aquamind.patch.json5`**) never completes—slow queue, rate limits, or a stalled HTTP connection. The AquaMind patch caps **`agents.defaults.model.timeoutMs`** (per request) and **`agents.defaults.timeoutSeconds`** (full turn including tools) and sets **`fastModeDefault`** on the `main` agent. **If stalls exceed those limits**, check OpenClaw gateway logs—some builds do not surface timeouts the same on every path. After merging the patch, **restart the gateway**. If replies still fail often, try another model or check **`OPENROUTER_API_KEY`** and OpenRouter status.
 
 ### `openclaw gateway stop` says “Gateway service missing”
 

@@ -35,7 +35,7 @@ Required report JSON:
 }
 ```
 
-PowerShell exec example:
+PowerShell exec example (from repo root):
 
 ```text
 $report = @'
@@ -49,7 +49,7 @@ $report = @'
   "caveats": "Correlation is not causation; sensor faults remain possible."
 }
 '@
-$report | & "C:\Users\Dell\WaterSec-OpenClaw-\.venv\Scripts\python.exe" "C:\Users\Dell\WaterSec-OpenClaw-\scripts\aquamind_gmail_report_cli.py"
+$report | & ".\.venv\Scripts\python.exe" ".\scripts\aquamind_gmail_report_cli.py"
 ```
 
 If a virtualenv is not available, use `python scripts\aquamind_gmail_report_cli.py` from the repo root after installing `requirements-gmail.txt`.
