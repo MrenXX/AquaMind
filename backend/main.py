@@ -1,11 +1,20 @@
 from __future__ import annotations
 
 import os
+from pathlib import Path
+
+try:
+    from dotenv import load_dotenv
+
+    load_dotenv(Path(__file__).resolve().parent.parent / ".env")
+except ImportError:
+    pass
 
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 
 from backend import analytics
+from backend.chat import router as chat_router
 from backend.config import db_path
 from backend.db import get_connection
 from backend.models import (
@@ -20,13 +29,40 @@ from backend.sql_guard import validate_readonly_sql
 
 app = FastAPI(title="AquaMind Analytics API", version="0.1.0")
 
+_DEFAULT_DEV_ORIGINS = [
+    "http://localhost:5173",
+    "http://127.0.0.1:5173",
+    "http://localhost:5174",
+    "http://127.0.0.1:5174",
+    "http://localhost:3000",
+    "http://127.0.0.1:3000",
+    "http://localhost:4173",
+    "http://127.0.0.1:4173",
+]
+
+
+def _cors_origins_and_credentials() -> tuple[list[str], bool]:
+    """Starlette forbids allow_credentials=True with allow_origins=['*']."""
+    raw = os.environ.get("AQUAMIND_CORS_ORIGINS", "").strip()
+    if raw:
+        origins = [o.strip() for o in raw.split(",") if o.strip()]
+        if origins == ["*"]:
+            return ["*"], False
+        return origins, True
+    return list(_DEFAULT_DEV_ORIGINS), True
+
+
+_cors_origins, _cors_credentials = _cors_origins_and_credentials()
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=os.environ.get("AQUAMIND_CORS_ORIGINS", "*").split(","),
-    allow_credentials=True,
+    allow_origins=_cors_origins,
+    allow_credentials=_cors_credentials,
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+app.include_router(chat_router)
 
 
 def _gmail_ready() -> dict[str, bool | str]:
