@@ -19,7 +19,7 @@ The backend may emit `status` with `step: "intent"` and `intent: "conversational
 
 ### Optional: LFM tier router
 
-The parent repo includes `../backend/router_gate.py`: wire `tier_to_primary_slug(classify_tier_sync(prompt))` into the FastAPI `/run` handler if you use tiered routing. Install with `pip install -r ../backend/requirements-router.txt` from a venv at repo root.
+The parent repo resolves **fast / balanced / heavy** tiers in `backend/router_gate.py` and heuristic intent in `backend/intent.py`. The FastAPI `/health` response includes `tier_slugs` for the dashboard. To try tier selection locally: `python -m backend.router_gate "your prompt"` from the repo root (with `.venv` and `PYTHONPATH` set so `backend` is importable, e.g. run from root after `pip install -r requirements-backend.txt`).
 
 ## Environment
 
