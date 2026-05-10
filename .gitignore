@@ -1,0 +1,5 @@
+.venv/
+.env
+openclaw/whatsapp-allowlist.generated.json5
+__pycache__/
+*.pyc
