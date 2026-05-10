@@ -17,6 +17,7 @@ This repository holds **config patches**, **PowerShell helpers**, **CLI tools**,
 | **Gateway** | `scripts/start-watersec-openclaw-gateway.ps1` — loads repo `.env`, runs `openclaw gateway run`. |
 | **Agent prompts** | `openclaw/workspace-templates/` → copy into `%USERPROFILE%\.openclaw\workspace\` (`AGENTS.md`, `SOUL.md`, `TOOLS.md`). |
 | **Data / demo** | Sample consumption CSVs, `requirements-spike.txt`, `scripts/proof_openrouter_daytona.py`, artifacts and hackathon PDF (see repo root). |
+| **SQLite data layer** (`sqlite-backend`) | `scripts/etl/` — builds `data/aquamind.sqlite` from the CSVs; **normalization**, **quality flags**, **trusted metrics**, motifs, anomalies. See [`docs/SQLITE_BACKEND.md`](docs/SQLITE_BACKEND.md). |
 
 ---
 
@@ -143,6 +144,23 @@ flowchart LR
 
 ---
 
+## SQLite data layer (this branch)
+
+WaterSec telemetry arrives as **four inconsistent CSV exports**. This branch adds an ETL pipeline that loads them into **SQLite**, normalizes to one event schema, flags bad sensor rows, and builds **derived datasets** (daily profiles, device baselines, Customer C **motifs**, anomaly candidates, cautious gym pairing). Optional enrichment: seeded holidays, placeholders for water-stress benchmarks, and [`scripts/fetch_open_meteo.py`](scripts/fetch_open_meteo.py) for **`climate_context`** (network).
+
+**Build locally (Python 3.10+):**
+
+```powershell
+python scripts\etl\build_database.py
+python scripts\validate_db.py
+```
+
+Output: `data\aquamind.sqlite` (ignored by git — regenerate after clone).
+
+**Docs:** [`docs/SQLITE_BACKEND.md`](docs/SQLITE_BACKEND.md) — normalization purpose, cleaning rules, enhancement data. Pitch-oriented summary: [`docs/PITCH_DATA_RESUME.md`](docs/PITCH_DATA_RESUME.md).
+
+---
+
 ## Documentation links
 
 - OpenClaw: [https://docs.openclaw.ai/](https://docs.openclaw.ai/)
@@ -155,6 +173,8 @@ flowchart LR
 ## Repository layout (short)
 
 - `openclaw/` — JSON5 merge patches and workspace templates for the agent.
-- `scripts/` — gateway, patches, Daytona runner, Gmail CLI, proofs.
+- `scripts/` — gateway, patches, Daytona runner, Gmail CLI, proofs, **SQLite ETL** (`scripts/etl/`).
+- `docs/` — SQLite backend, data inventory, pitch resume, agent data rules.
+- `data/` — optional local folder for generated `aquamind.sqlite` (see `.gitignore`).
 - `artifacts/` — demo outputs (e.g. charts, HTML) when generated.
 - Root CSVs / PDF — WaterSec hackathon and sample consumption data for analytics demos.

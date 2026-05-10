@@ -6,3 +6,7 @@ __pycache__/
 artifacts/
 openclaw/whatsapp-allowlist.generated.json5
 whatsapp-allowlist.generated.json5
+
+# SQLite build output (generate with scripts/etl/build_database.py)
+data/*.sqlite
+data/*.sqlite-journal
