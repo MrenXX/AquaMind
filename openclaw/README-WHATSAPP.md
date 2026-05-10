@@ -35,7 +35,7 @@ OpenClaw stores live config in `%USERPROFILE%\.openclaw\openclaw.json`. This rep
    .\scripts\patch-whatsapp-allowlist.ps1
    ```
 
-   This merges **+21658526779**, **+21693779303**, **+21651377789**, and optional `WHATSAPP_SELF_E164` into `channels.whatsapp.allowFrom` with **`dmPolicy: allowlist`**. It also sets **`groupPolicy: allowlist`**, **`groups["*"].requireMention: true`**, and uses your DM allowlist as the group sender allowlist (OpenClaw falls back from `groupAllowFrom` to **`allowFrom`** when `groupAllowFrom` is omitted).
+   This merges **+21658628797**, **+21693779303**, **+21651377789**, and optional `WHATSAPP_SELF_E164` into `channels.whatsapp.allowFrom` with **`dmPolicy: allowlist`**. It also sets **`groupPolicy: allowlist`**, **`groups["*"].requireMention: true`**, and uses your DM allowlist as the group sender allowlist (OpenClaw falls back from `groupAllowFrom` to **`allowFrom`** when `groupAllowFrom` is omitted).
 
 5. **API keys** — set `OPENROUTER_API_KEY` and `DAYTONA_API_KEY` in `.env`; start the gateway via `scripts\start-watersec-openclaw-gateway.ps1` so keys load without printing the file.
 
@@ -105,6 +105,27 @@ The agent is instructed in **`AGENTS.md`** to run Python via:
 WhatsApp cannot reliably embed PNG bytes from the model; when the runner returns **`signed_chart_url`**, the agent should send that **link** so you open the chart in a browser (Daytona preview, ~1h signed).
 
 If a chart URL was created, the runner may **leave the sandbox running** so the link stays valid — delete orphaned sandboxes in the Daytona dashboard when done.
+
+## Gmail incident reports (WhatsApp agent)
+
+The agent can send real Gmail reports through:
+
+- **`scripts/aquamind_gmail_report_cli.py`** — reads report JSON from stdin; returns one JSON object with send status, Gmail `message_id`, and SQLite `sqlite_report_id`.
+- **`requirements-gmail.txt`** — install Gmail dependencies with `pip install -r requirements-gmail.txt`.
+- OAuth client secret default: **`%USERPROFILE%\.openclaw\gmail\client_secret.json`**.
+- OAuth token default: **`%USERPROFILE%\.openclaw\gmail\token.json`**.
+- SQLite send log default: **`%USERPROFILE%\.openclaw\gmail\gmail_reports.sqlite3`**.
+
+Required `.env` values:
+
+```powershell
+GMAIL_SENDER=your-sender@gmail.com
+GMAIL_TO=ops.manager@example.com
+```
+
+Optional `.env` values: `GMAIL_CC`, `GMAIL_CLIENT_SECRET_FILE`, `GMAIL_TOKEN_FILE`, and `GMAIL_DB_PATH`.
+
+First real send may open Google OAuth consent in the browser. After consent, the stored token is reused for later WhatsApp-triggered sends.
 
 ## Workspace prompts
 
