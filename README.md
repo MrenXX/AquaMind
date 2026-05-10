@@ -1,6 +1,6 @@
 # AquaMind (WaterSec)
 
-AquaMind is a **WaterSec operations assistant** that employees reach on **WhatsApp**. It runs on **OpenClaw**, uses **MiniMax M2.5 (free)** via **OpenRouter** with **latency-aware routing** and **model fallbacks**, executes Python in **Daytona** sandboxes for charts and proofs, and can send **real Gmail incident reports** through the **Gmail API** when someone asks to escalate.
+AquaMind is a **WaterSec operations assistant** that employees reach on **WhatsApp**. It runs on **OpenClaw** and uses **OpenRouter** with **multiple coordinated models**, **latency-prioritized provider selection**, and **fallback chains**—not a single fixed model. It runs **Python in Daytona** for charts and proofs, and can send **Gmail** incident reports when a situation should be escalated.
 
 This repository holds **config patches**, **PowerShell helpers**, **CLI tools**, **OpenClaw workspace prompts**, a **FastAPI backend** (chat + SQLite analytics), an optional **React dashboard**, and **sample telemetry CSVs** for demos—**not** secrets or your live `%USERPROFILE%\.openclaw\` state.
 
@@ -13,7 +13,7 @@ This repository holds **config patches**, **PowerShell helpers**, **CLI tools**,
 | Area | What’s in the repo |
 |------|---------------------|
 | **WhatsApp** | OpenClaw channel setup, QR linking, DM/group allowlist script, `@clanker` group wake word (see patch + docs). |
-| **Models** | `openclaw/aquamind.patch.json5`: primary `openrouter/minimax/minimax-m2.5:free`, **fallback chain**, **`provider.sort: "latency"`**, turn + HTTP timeouts, `fastModeDefault` on the `main` agent. |
+| **Models** | `openclaw/aquamind.patch.json5`: **primary** Qwen 3 Next, **fallbacks** MiniMax M2.5 and Liquid LFM 2.5, **`provider.sort: "latency"`**, shared timeouts; FastAPI **`/health`** exposes per-tier slugs via `AQUAMIND_MODEL_*` (see `backend/router_gate.py`). |
 | **Daytona** | `scripts/aquamind_daytona_runner_cli.py` — stdin Python → sandbox → **JSON** (`stdout`, `exit_code`, optional **`signed_chart_url`** for PNG previews). |
 | **Gmail** | `scripts/aquamind_gmail_report_cli.py` — stdin **JSON report** → Gmail API (OAuth) → **JSON** result + **SQLite** send log under `%USERPROFILE%\.openclaw\gmail\`. |
 | **Gateway** | `scripts/start-watersec-openclaw-gateway.ps1` — loads repo `.env`, runs `openclaw gateway run`. |
@@ -21,7 +21,7 @@ This repository holds **config patches**, **PowerShell helpers**, **CLI tools**,
 | **Data / demo** | Sample consumption CSVs, `requirements-spike.txt`, `scripts/proof_openrouter_daytona.py`, artifacts and hackathon PDF (see repo root). |
 | **SQLite data layer** (`sqlite-backend`) | `scripts/etl/` — builds `data/aquamind.sqlite` from the CSVs; **normalization**, **quality flags**, **trusted metrics**, motifs, anomalies. See [`docs/SQLITE_BACKEND.md`](docs/SQLITE_BACKEND.md). |
 | **FastAPI (chat + analytics)** | `backend/` + `scripts/start-aquamind-backend.ps1` — **`POST /run`** streams **SSE** for the dashboard and tools (intent classification, optional SQLite-first planner, Daytona codegen fallback); **`GET /health`** reports DB status, Gmail env hints, **`openrouter_roles`**, **routing** metadata, and **tier** slug health from `router_gate` / `intent`. **REST tools:** `/dashboard/summary`, `/tools/query_metrics`, `/tools/compare_sources`, `/tools/find_motifs`, `/tools/detect_anomalies`, `/tools/run_sql_readonly` (see [`openclaw/workspace-templates/TOOLS.md`](openclaw/workspace-templates/TOOLS.md)). |
-| **Heuristic routing** | `backend/router_gate.py` (+ `requirements-router.txt`) — cheap tier classification mapped to `AQUAMIND_MODEL_*` slugs; surfaced on `/health` as `tier_slugs`. |
+| **Heuristic routing** | `backend/router_gate.py` and `backend/intent.py` — tier choice mapped to `AQUAMIND_MODEL_*` slugs; summarized on `/health` as `tier_slugs`. |
 | **React dashboard** | `frontend/` — Vite + React: **Overview** (chat), **Pipeline** (steps, expert transcript/code, charts), **Model routing** (planned OpenRouter chains from `/health`), **Insights** (charts + KPIs from SQLite API), **Docs** (in-app setup summary). Uses `fetchAnalytics` for the same tool routes the agent uses. |
 
 ---
