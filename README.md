@@ -18,6 +18,7 @@ This repository holds **config patches**, **PowerShell helpers**, **CLI tools**,
 | **Agent prompts** | `openclaw/workspace-templates/` → copy into `%USERPROFILE%\.openclaw\workspace\` (`AGENTS.md`, `SOUL.md`, `TOOLS.md`). |
 | **Data / demo** | Sample consumption CSVs, `requirements-spike.txt`, `scripts/proof_openrouter_daytona.py`, artifacts and hackathon PDF (see repo root). |
 | **SQLite data layer** (`sqlite-backend`) | `scripts/etl/` — builds `data/aquamind.sqlite` from the CSVs; **normalization**, **quality flags**, **trusted metrics**, motifs, anomalies. See [`docs/SQLITE_BACKEND.md`](docs/SQLITE_BACKEND.md). |
+| **Analytics API** | `backend/` + `scripts/start-aquamind-backend.ps1` — FastAPI over SQLite for deterministic metrics, motifs, anomalies, and guarded read-only SQL (`http://127.0.0.1:8765`). See [`openclaw/workspace-templates/TOOLS.md`](openclaw/workspace-templates/TOOLS.md). |
 
 ---
 
@@ -32,6 +33,7 @@ flowchart LR
     OC[OpenClaw gateway]
     DR[Daytona runner CLI]
     GM[Gmail report CLI]
+    API[FastAPI analytics]
   end
   subgraph cloud [External APIs]
     OR[OpenRouter]
@@ -44,6 +46,7 @@ flowchart LR
   DR --> DT
   OC --> GM
   GM --> GMAIL
+  OC --> API
 ```
 
 ---
@@ -81,6 +84,8 @@ flowchart LR
    .\.venv\Scripts\python.exe -m pip install -r requirements-gmail.txt
    # Optional spike / proof stack:
    .\.venv\Scripts\python.exe -m pip install -r requirements-spike.txt
+   # Analytics API (FastAPI over SQLite):
+   .\.venv\Scripts\python.exe -m pip install -r requirements-backend.txt
    ```
 
 4. **OpenClaw bootstrap and patches** — follow the step-by-step guide:
@@ -110,6 +115,16 @@ flowchart LR
    .\scripts\start-watersec-openclaw-gateway.ps1
    ```
 
+8. **(Optional) Telemetry DB + analytics API** — after CSVs are in the repo root:
+
+   ```powershell
+   .\.venv\Scripts\python.exe scripts\etl\build_database.py
+   .\.venv\Scripts\python.exe scripts\validate_db.py
+   .\scripts\start-aquamind-backend.ps1
+   ```
+
+   Open `http://127.0.0.1:8765/docs` for interactive API testing.
+
 ---
 
 ## Gmail incident reports (summary)
@@ -133,6 +148,7 @@ flowchart LR
 | `scripts/aquamind_gmail_report_cli.py` | JSON report → Gmail API → JSON + SQLite log. |
 | `scripts/proof_openrouter_daytona.py` | End-to-end OpenRouter → generated code → Daytona smoke test. |
 | `scripts/daytona_artifact_preview.py` | Helper around Daytona artifacts (see script docstring). |
+| `scripts/start-aquamind-backend.ps1` | Install `requirements-backend.txt` if needed, run **FastAPI** on `127.0.0.1:8765`. |
 
 ---
 
@@ -173,6 +189,7 @@ Output: `data\aquamind.sqlite` (ignored by git — regenerate after clone).
 ## Repository layout (short)
 
 - `openclaw/` — JSON5 merge patches and workspace templates for the agent.
+- `backend/` — FastAPI analytics service over `data/aquamind.sqlite`.
 - `scripts/` — gateway, patches, Daytona runner, Gmail CLI, proofs, **SQLite ETL** (`scripts/etl/`).
 - `docs/` — SQLite backend, data inventory, pitch resume, agent data rules.
 - `data/` — optional local folder for generated `aquamind.sqlite` (see `.gitignore`).

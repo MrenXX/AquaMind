@@ -54,12 +54,50 @@ $report | & ".\.venv\Scripts\python.exe" ".\scripts\aquamind_gmail_report_cli.py
 
 If a virtualenv is not available, use `python scripts\aquamind_gmail_report_cli.py` from the repo root after installing `requirements-gmail.txt`.
 
-## Planned FastAPI (analytics)
+## FastAPI analytics service (live)
+
+Local HTTP API over `data/aquamind.sqlite` (build with `python scripts\etl\build_database.py`). Start from repo root:
+
+```powershell
+.\scripts\start-aquamind-backend.ps1
+```
+
+Default URL: `http://127.0.0.1:8765`. Set `AQUAMIND_API_BASE` in `.env` if you bind another host/port. Optional `AQUAMIND_DB_PATH` points at a non-default SQLite file.
+
+| Method | Path | Purpose |
+|--------|------|---------|
+| `GET` | `/health` | API up, DB file exists, Gmail env hints |
+| `GET` | `/schema` | Allowed table/view names and doc pointers for agents |
+| `GET` | `/dashboard/summary` | Compact counts for a future dashboard |
+| `GET` | `/events/latest` | Last tool call trace (in-process MVP) |
+| `POST` | `/tools/query_metrics` | Aggregates on `trusted_events` or `consumption_events` |
+| `POST` | `/tools/compare_sources` | Two filtered slices side by side |
+| `POST` | `/tools/find_motifs` | Rows from `motif_patterns` |
+| `POST` | `/tools/detect_anomalies` | Rows from `anomaly_candidates` |
+| `POST` | `/tools/run_sql_readonly` | Guarded `SELECT` / `WITH`, row cap |
+
+PowerShell example (metrics):
+
+```text
+$body = @{ use_trusted = $true; customer_profile = "gym"; group_by = "day"; limit = 5 } | ConvertTo-Json
+Invoke-RestMethod -Uri "http://127.0.0.1:8765/tools/query_metrics" -Method Post -Body $body -ContentType "application/json"
+```
+
+Read-only SQL example:
+
+```text
+$body = @{ sql = "SELECT COUNT(*) AS n FROM trusted_events WHERE customer_profile = 'gym'"; max_rows = 50 } | ConvertTo-Json
+Invoke-RestMethod -Uri "http://127.0.0.1:8765/tools/run_sql_readonly" -Method Post -Body $body -ContentType "application/json"
+```
+
+### Future: CSV → DB ingest tool
+
+Planned endpoint (not implemented yet): `POST /tools/ingest_csv` — accept validated CSV payload + profile (`customerA` / `customerB` / `customerC` / `gym`), append to the appropriate `raw_*` table, then re-run or incrementally refresh normalized tables so MiniMax can refresh telemetry without shell access. Will be documented here when shipped; gate behind auth for non-demo use.
+
+## Planned FastAPI extras
 
 | Endpoint | Purpose |
 |----------|---------|
-| `GET /health` | API + SQLite + Gmail readiness |
-| `POST /ask` | Natural-language orchestration |
-| `POST /tools/query_metrics` | Deterministic metrics |
+| `POST /ask` | Optional natural-language orchestration layer |
 
-Until deployed, use runner + domain knowledge only.
+Natural-language `/ask` is optional; until then the agent calls the `/tools/*` routes directly.

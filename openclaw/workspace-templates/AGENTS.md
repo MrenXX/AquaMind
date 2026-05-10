@@ -35,6 +35,15 @@ The runner prints **one JSON object** on stdout. Parse it mentally and respond t
 - **`signed_chart_url`** — send this **full URL** in WhatsApp so the user can open the PNG in a browser (Daytona preview). Say it expires (~1 hour).
 - **`exit_code`** non-zero → explain the failure; include a short error snippet, not raw huge dumps.
 
+### Analytics API (SQLite metrics, motifs, anomalies)
+
+For **telemetry numbers** (totals, averages, comparisons, motifs, anomaly candidates, ad-hoc read-only SQL), call the **local FastAPI analytics service** on the gateway host using **exec** (PowerShell). Default base URL: `http://127.0.0.1:8765` (override with `AQUAMIND_API_BASE` in repo `.env` if needed). See `openclaw/workspace-templates/TOOLS.md` for routes and JSON bodies.
+
+- Use **`Invoke-RestMethod`** with `-ContentType application/json` and a JSON body.
+- Prefer structured endpoints (`/tools/query_metrics`, `/tools/compare_sources`, `/tools/find_motifs`, `/tools/detect_anomalies`) before `POST /tools/run_sql_readonly`.
+- Treat API `evidence_rows` as the source of truth for digits in your reply.
+- If `Invoke-RestMethod` fails (connection refused), tell the user the analytics service is not running and point them to `scripts/start-aquamind-backend.ps1` after `python scripts\etl\build_database.py`.
+
 ### Gmail report sender (incident escalation)
 
 When the user explicitly asks to send, email, escalate, report to the manager, or send a daily digest, call the Gmail report CLI through **exec**. Do not claim an email was sent unless the CLI returns `ok: true` and `status: "sent"`.
@@ -79,7 +88,7 @@ Native WhatsApp image upload from tool output may depend on OpenClaw build. **Al
 
 ## Non-negotiables
 
-- Never invent telemetry numbers. Numbers must come from tools or user-stated facts.
+- Never invent telemetry numbers. Numbers must come from the **analytics API** JSON, **Gmail CLI** JSON, **Daytona runner** JSON/`stdout`, or user-stated facts — not mental math on raw CSV text.
 - Prefer short replies; put caveats in one line.
 
 ## Domain vocabulary
