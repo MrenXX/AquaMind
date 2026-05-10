@@ -21,6 +21,7 @@ This repository holds **config patches**, **PowerShell helpers**, **CLI tools**,
 | **Data / demo** | Sample consumption CSVs, `requirements-spike.txt`, `scripts/proof_openrouter_daytona.py`, artifacts and hackathon PDF (see repo root). |
 | **SQLite data layer** (`sqlite-backend`) | `scripts/etl/` — builds `data/aquamind.sqlite` from the CSVs; **normalization**, **quality flags**, **trusted metrics**, motifs, anomalies. See [`docs/SQLITE_BACKEND.md`](docs/SQLITE_BACKEND.md). |
 | **Analytics API** | `backend/` + `scripts/start-aquamind-backend.ps1` — FastAPI over SQLite for deterministic metrics, motifs, anomalies, and guarded read-only SQL (`http://127.0.0.1:8765`). See [`openclaw/workspace-templates/TOOLS.md`](openclaw/workspace-templates/TOOLS.md). |
+| **React dashboard** | `frontend/` — Vite + React UI: chat + pipeline, OpenRouter model routing tab, SQLite-backed **Insights** KPIs (same `/dashboard/summary` and `/tools/*` as the agent). |
 
 ---
 
@@ -127,6 +128,17 @@ flowchart LR
 
    Open `http://127.0.0.1:8765/docs` for interactive API testing.
 
+9. **(Optional) React dashboard** — in a second terminal:
+
+   ```powershell
+   cd frontend
+   npm install
+   copy ..\.env.example .env.local   # optional; set VITE_CHAT_API=/api for Vite proxy to step 8
+   npm run dev
+   ```
+
+   Use `VITE_CHAT_API=/api` so the dev server proxies `http://127.0.0.1:8765` (avoids CORS). See [`frontend/README.md`](frontend/README.md) for the chat/analytics contract.
+
 ---
 
 ## Gmail incident reports (summary)
@@ -191,6 +203,7 @@ Output: `data\aquamind.sqlite` (ignored by git — regenerate after clone).
 ## Repository layout (short)
 
 - `openclaw/` — JSON5 merge patches and workspace templates for the agent.
+- `frontend/` — Vite + React WaterSec dashboard (chat, pipeline, model routing, SQLite insights).
 - `backend/` — FastAPI analytics service over `data/aquamind.sqlite`.
 - `scripts/` — gateway, patches, Daytona runner, Gmail CLI, proofs, **SQLite ETL** (`scripts/etl/`).
 - `docs/` — SQLite backend, data inventory, pitch resume, agent data rules, **[`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md)** (end-to-end integration for agents).

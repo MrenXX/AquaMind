@@ -1,0 +1,38 @@
+@import url('https://fonts.googleapis.com/css2?family=Onest:wght@400..700&display=swap');
+@import './tokens.css';
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+html,
+body,
+#root {
+  height: 100%;
+}
+
+body {
+  margin: 0;
+  font-family: var(--ws-font);
+  font-weight: 400;
+  color: var(--ws-text-secondary);
+  background:
+    radial-gradient(ellipse 100% 90% at 85% -10%, rgba(13, 76, 211, 0.09), transparent 45%),
+    radial-gradient(ellipse 70% 50% at 10% 100%, rgba(13, 180, 160, 0.05), transparent 50%),
+    var(--ws-page-bg);
+  background-attachment: fixed;
+  -webkit-font-smoothing: antialiased;
+}
+
+h1,
+h2,
+h3 {
+  font-weight: 700;
+  color: var(--ws-text);
+}
+
+button {
+  font-family: inherit;
+}

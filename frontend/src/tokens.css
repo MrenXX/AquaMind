@@ -1,0 +1,22 @@
+:root {
+  --ws-primary: #0d4cd3;
+  --ws-primary-hover: #0636a8;
+  --ws-page-bg: #e9f0fb;
+  --ws-card-bg: #ffffff;
+  --ws-text: #0c1222;
+  --ws-text-secondary: #3d4f6d;
+  --ws-on-primary: #ffffff;
+  --ws-sidebar-w: 240px;
+  --ws-radius-card: 14px;
+  --ws-radius-pill: 999px;
+  --ws-radius-input: 10px;
+  --ws-font: 'Onest', system-ui, sans-serif;
+  --ws-shadow-soft: 0 1px 2px rgba(12, 18, 34, 0.04), 0 8px 24px rgba(13, 76, 211, 0.06);
+  --ws-shadow-lift: 0 4px 20px rgba(12, 18, 34, 0.08);
+  --ws-success: #16a34a;
+  --ws-danger: #dc2626;
+  --ws-repair-amber-bg: #fef3c7;
+  --ws-repair-amber-text: #92400e;
+  --ws-code-bg: #0f172a;
+  --ws-muted-line: #e2e8f0;
+}

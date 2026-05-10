@@ -10,3 +10,9 @@ whatsapp-allowlist.generated.json5
 # SQLite build output (generate with scripts/etl/build_database.py)
 data/*.sqlite
 data/*.sqlite-journal
+
+# React dashboard (see frontend/)
+frontend/node_modules/
+frontend/dist/
+frontend/.env
+frontend/.env.local
