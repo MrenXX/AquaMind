@@ -1,5 +1,7 @@
 # AquaMind tools contract
 
+End-to-end integration (agent, OpenClaw, FastAPI, SQLite, Daytona, Gmail): **[`docs/ARCHITECTURE.md`](../../docs/ARCHITECTURE.md)**.
+
 ## Daytona Python runner (live)
 
 - **CLI:** `scripts/aquamind_daytona_runner_cli.py` (stdin = Python source).

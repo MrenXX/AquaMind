@@ -4,6 +4,8 @@ AquaMind is a **WaterSec operations assistant** that employees reach on **WhatsA
 
 This repository holds **config patches**, **PowerShell helpers**, **CLI tools**, **OpenClaw workspace prompts**, and **sample telemetry CSVs** for demos—**not** secrets or your live `%USERPROFILE%\.openclaw\` state.
 
+**Full stack onboarding (agent → OpenClaw → FastAPI → SQLite, plus Daytona/Gmail):** see [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md). Point an AI agent at this repo **on the integration branch** and have it read that file first for complete context.
+
 ---
 
 ## What you get
@@ -191,7 +193,7 @@ Output: `data\aquamind.sqlite` (ignored by git — regenerate after clone).
 - `openclaw/` — JSON5 merge patches and workspace templates for the agent.
 - `backend/` — FastAPI analytics service over `data/aquamind.sqlite`.
 - `scripts/` — gateway, patches, Daytona runner, Gmail CLI, proofs, **SQLite ETL** (`scripts/etl/`).
-- `docs/` — SQLite backend, data inventory, pitch resume, agent data rules.
+- `docs/` — SQLite backend, data inventory, pitch resume, agent data rules, **[`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md)** (end-to-end integration for agents).
 - `data/` — optional local folder for generated `aquamind.sqlite` (see `.gitignore`).
 - `artifacts/` — demo outputs (e.g. charts, HTML) when generated.
 - Root CSVs / PDF — WaterSec hackathon and sample consumption data for analytics demos.
