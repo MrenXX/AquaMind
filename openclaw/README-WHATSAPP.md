@@ -20,9 +20,23 @@ OpenClaw stores live config in `%USERPROFILE%\.openclaw\openclaw.json`. This rep
 3. **Merge AquaMind defaults** (MiniMax via OpenRouter + `plugins.allow` + agent timeouts):
 
    ```powershell
-   cd D:\jects\WaterSec
+   cd <your-repo-root>
    .\scripts\apply-openclaw-aquamind-patch.ps1
    ```
+
+   **If PowerShell refuses the script** (“not digitally signed” / `PSSecurityException`), either run once with bypass:
+
+   ```powershell
+   powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\apply-openclaw-aquamind-patch.ps1
+   ```
+
+   Or allow signed-remote + local scripts for your user (persists; answer `Y` when prompted):
+
+   ```powershell
+   Set-ExecutionPolicy -ExecutionPolicy RemoteSigned -Scope CurrentUser
+   ```
+
+   Use the same bypass or policy for `patch-whatsapp-allowlist.ps1` and `start-watersec-openclaw-gateway.ps1`.
 
    This sets **`agents.defaults.timeoutSeconds`** (whole agent turn), **`agents.defaults.model.timeoutMs`** (per provider HTTP completion), **`agents.defaults.model.fallbacks`** (free-model chain if MiniMax fails), and **`agents.defaults.params.extra_body.provider.sort: "latency"`** so OpenRouter prefers low-latency endpoints. **`agents.list`** enables **`fastModeDefault`** on `main`. Restart the gateway after patching.
 
