@@ -16,3 +16,9 @@ frontend/node_modules/
 frontend/dist/
 frontend/.env
 frontend/.env.local
+
+# Local working notes (do not publish)
+grill-me.md
+SKILL.md
+README-BUNDLE.txt
+docs/DATA_WORK_REPORT.md

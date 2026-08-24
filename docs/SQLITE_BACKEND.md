@@ -1,6 +1,6 @@
 # AquaMind SQLite backend — normalization & enhancements
 
-This branch adds a **deterministic SQLite data layer** for WaterSec telemetry: raw CSVs → normalized events → quality flags → **trusted** analytics → derived insight tables. The FastAPI agent should query SQLite for numbers (see hackathon / AquaMind plan), not sum CSVs in the LLM.
+AquaMind includes a **deterministic SQLite data layer** for water telemetry: raw CSVs → normalized events → quality flags → **trusted** analytics → derived insight tables. The FastAPI agent should query SQLite for numbers, not sum CSVs in the LLM.
 
 ## Why normalization?
 

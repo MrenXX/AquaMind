@@ -4,7 +4,7 @@ This guide explains, in simple terms, what was built for the AquaMind data task,
 
 ## 1. Your Data Role
 
-Your hackathon data task is to turn four raw WaterSec CSV files into one clean SQLite database.
+Your data task is to turn four raw WaterSec CSV files into one clean SQLite database.
 
 The raw CSV files are not ready for the AI agent to use directly because:
 
@@ -671,7 +671,7 @@ Before saying liters or milliliters, ask WaterSec to confirm the unit.
 
 This is very important for the demo.
 
-## 6. How To Explain This In The Hackathon
+## 6. How To Explain This Project
 
 You can say:
 
