@@ -1,10 +1,10 @@
-# AquaMind (WaterSec)
+# AquaMind
 
-AquaMind is a **WaterSec operations assistant** that employees reach on **WhatsApp**. It runs on **OpenClaw** and uses **OpenRouter** with **multiple coordinated models**, **latency-prioritized provider selection**, and **fallback chains**—not a single fixed model. It runs **Python in Daytona** for charts and proofs, and can send **Gmail** incident reports when a situation should be escalated.
+AquaMind is a personal **operations assistant** you reach on **WhatsApp**. It runs on **OpenClaw** and uses **OpenRouter** with **multiple coordinated models**, **latency-prioritized provider selection**, and **fallback chains**—not a single fixed model. It runs **Python in Daytona** for charts and proofs, and can send **Gmail** incident reports when a situation should be escalated.
 
-This repository holds **config patches**, **PowerShell helpers**, **CLI tools**, **OpenClaw workspace prompts**, a **FastAPI backend** (chat + SQLite analytics), an optional **React dashboard**, and **sample telemetry CSVs** for demos—**not** secrets or your live `%USERPROFILE%\.openclaw\` state.
+This repository holds **config patches**, **PowerShell helpers**, **CLI tools**, **OpenClaw workspace prompts**, a **FastAPI backend** (chat + SQLite analytics), an optional **React dashboard**, and **sample telemetry CSVs** for demos.
 
-**Full stack onboarding (agent → OpenClaw → FastAPI → SQLite → web UI, plus Daytona/Gmail):** see [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md). On **`main`**, treat that file as the integration map (the `feature/sqlite-fastapi-backend` branch tracks the same stack when you need a long-lived integration branch).
+**Full stack overview (agent → OpenClaw → FastAPI → SQLite → web UI, plus Daytona/Gmail):** see [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md).
 
 ---
 
@@ -18,7 +18,7 @@ This repository holds **config patches**, **PowerShell helpers**, **CLI tools**,
 | **Gmail** | `scripts/aquamind_gmail_report_cli.py` — stdin **JSON report** → Gmail API (OAuth) → **JSON** result + **SQLite** send log under `%USERPROFILE%\.openclaw\gmail\`. |
 | **Gateway** | `scripts/start-watersec-openclaw-gateway.ps1` — loads repo `.env`, runs `openclaw gateway run`. |
 | **Agent prompts** | `openclaw/workspace-templates/` → copy into `%USERPROFILE%\.openclaw\workspace\` (`AGENTS.md`, `SOUL.md`, `TOOLS.md`). |
-| **Data / demo** | Sample consumption CSVs, `requirements-spike.txt`, `scripts/proof_openrouter_daytona.py`, artifacts and hackathon PDF (see repo root). |
+| **Data / demo** | Sample consumption CSVs, `requirements-spike.txt`, `scripts/proof_openrouter_daytona.py`. |
 | **SQLite data layer** (`sqlite-backend`) | `scripts/etl/` — builds `data/aquamind.sqlite` from the CSVs; **normalization**, **quality flags**, **trusted metrics**, motifs, anomalies. See [`docs/SQLITE_BACKEND.md`](docs/SQLITE_BACKEND.md). |
 | **FastAPI (chat + analytics)** | `backend/` + `scripts/start-aquamind-backend.ps1` — **`POST /run`** streams **SSE** for the dashboard and tools (intent classification, optional SQLite-first planner, Daytona codegen fallback); **`GET /health`** reports DB status, Gmail env hints, **`openrouter_roles`**, **routing** metadata, and **tier** slug health from `router_gate` / `intent`. **REST tools:** `/dashboard/summary`, `/tools/query_metrics`, `/tools/compare_sources`, `/tools/find_motifs`, `/tools/detect_anomalies`, `/tools/run_sql_readonly` (see [`openclaw/workspace-templates/TOOLS.md`](openclaw/workspace-templates/TOOLS.md)). |
 | **Heuristic routing** | `backend/router_gate.py` and `backend/intent.py` — tier choice mapped to `AQUAMIND_MODEL_*` slugs; summarized on `/health` as `tier_slugs`. |
@@ -173,17 +173,16 @@ flowchart LR
 
 ---
 
-## Security and hygiene
+## Security
 
-- **Never commit** `.env`, OAuth `client_secret.json`, or `token.json`. They are listed in `.gitignore` for env and generated files; keep Gmail secrets under `%USERPROFILE%\.openclaw\gmail\`.
-- **Rotate keys** if they ever appeared in chat logs or were committed by mistake.
+- **Never commit** `.env`, OAuth `client_secret.json`, or `token.json`. They are listed in `.gitignore`; keep Gmail secrets under `%USERPROFILE%\.openclaw\gmail\`.
 - WhatsApp linking ties the gateway to a real device session—treat the host like production credentials.
 
 ---
 
 ## SQLite data layer
 
-WaterSec telemetry arrives as **four inconsistent CSV exports**. This branch adds an ETL pipeline that loads them into **SQLite**, normalizes to one event schema, flags bad sensor rows, and builds **derived datasets** (daily profiles, device baselines, Customer C **motifs**, anomaly candidates, cautious gym pairing). Optional enrichment: seeded holidays, placeholders for water-stress benchmarks, and [`scripts/fetch_open_meteo.py`](scripts/fetch_open_meteo.py) for **`climate_context`** (network).
+The sample telemetry arrives as **four inconsistent CSV exports**. An ETL pipeline loads them into **SQLite**, normalizes to one event schema, flags bad sensor rows, and builds **derived datasets** (daily profiles, device baselines, Customer C **motifs**, anomaly candidates, cautious gym pairing). Optional enrichment: seeded holidays, placeholders for water-stress benchmarks, and [`scripts/fetch_open_meteo.py`](scripts/fetch_open_meteo.py) for **`climate_context`** (network).
 
 **Build locally (Python 3.10+):**
 
@@ -194,7 +193,7 @@ python scripts\validate_db.py
 
 Output: `data\aquamind.sqlite` (ignored by git — regenerate after clone).
 
-**Docs:** [`docs/SQLITE_BACKEND.md`](docs/SQLITE_BACKEND.md) — normalization purpose, cleaning rules, enhancement data. Pitch-oriented summary: [`docs/PITCH_DATA_RESUME.md`](docs/PITCH_DATA_RESUME.md).
+**Docs:** [`docs/SQLITE_BACKEND.md`](docs/SQLITE_BACKEND.md) — normalization purpose, cleaning rules, enhancement data.
 
 ---
 
@@ -210,10 +209,9 @@ Output: `data\aquamind.sqlite` (ignored by git — regenerate after clone).
 ## Repository layout (short)
 
 - `openclaw/` — JSON5 merge patches and workspace templates for the agent.
-- `frontend/` — Vite + React WaterSec dashboard (chat, pipeline, model routing, SQLite insights).
+- `frontend/` — Vite + React dashboard (chat, pipeline, model routing, SQLite insights).
 - `backend/` — FastAPI analytics service over `data/aquamind.sqlite`.
 - `scripts/` — gateway, patches, Daytona runner, Gmail CLI, proofs, **SQLite ETL** (`scripts/etl/`).
-- `docs/` — SQLite backend, data inventory, pitch resume, agent data rules, **[`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md)** (end-to-end integration for agents).
+- `docs/` — SQLite backend, data inventory, agent data rules, **[`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md)** (end-to-end integration guide).
 - `data/` — optional local folder for generated `aquamind.sqlite` (see `.gitignore`).
-- `artifacts/` — demo outputs (e.g. charts, HTML) when generated.
-- Root CSVs / PDF — WaterSec hackathon and sample consumption data for analytics demos.
+- Root CSVs — sample consumption data for analytics demos.
