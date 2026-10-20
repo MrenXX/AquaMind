@@ -9,16 +9,16 @@ The project started with inconsistent consumption exports. I added a common even
 ```mermaid
 flowchart TB
     WA[WhatsApp] <--> OC[OpenClaw gateway]
-    UI[React dashboard] <--> API[FastAPI: chat and analytics]
+    UI[React dashboard] <--> API[FastAPI]
     OC --> API
-    OC --> OR[OpenRouter: roles and fallbacks]
+    OC --> OR[OpenRouter]
     API --> OR
-    OC --> RUN[Daytona runner CLI]
-    RUN --> DT[Daytona Python sandbox]
+    OC --> RUN[Daytona CLI]
+    RUN --> DT[Daytona sandbox]
     API --> DT
-    OC --> MAIL[Gmail report CLI]
+    OC --> MAIL[Gmail CLI]
     MAIL --> GMAIL[Gmail API]
-    CSV[Four telemetry CSV exports] --> ETL[Normalize, flag, derive metrics]
+    CSV[Telemetry CSVs] --> ETL[ETL + quality flags]
     ETL --> DB[(Local SQLite)]
     API <--> DB
 ```
