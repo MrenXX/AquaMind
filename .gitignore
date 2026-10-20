@@ -21,4 +21,5 @@ frontend/.env.local
 grill-me.md
 SKILL.md
 README-BUNDLE.txt
+*.zip
 docs/DATA_WORK_REPORT.md

@@ -13,7 +13,7 @@ The dashboard expects a chat service that exposes:
 
 The app uses `fetch` plus `ReadableStream` because `EventSource` cannot send a POST body.
 
-The backend may emit `status` with `step: "intent"` and `intent: "conversational" | "data"`. Special `sandbox_result.sandbox_id` values: `intent:conversational`, `sqlite:local` (stdout is ToolResponse JSON), or Daytona-style results.
+The renderer supports conversational, SQLite, and Daytona result shapes. The current `/run` handler emits `intent:conversational` or Daytona results; the separate SQLite-first planner is not wired into that route. Insights reads SQLite through the analytics endpoints independently.
 
 **Insights** calls `GET /dashboard/summary` and `POST /tools/query_metrics`, `find_motifs`, `detect_anomalies` (same as documented in `openclaw/workspace-templates/TOOLS.md`).
 

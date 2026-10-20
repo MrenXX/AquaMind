@@ -1,105 +1,64 @@
-# AquaMind — full integration context (for humans and agents)
+# Architecture
 
-If you are pointed at this **repository branch** (for example `feature/sqlite-fastapi-backend`), treat this file as the **single onboarding map**. Read it first, then follow the linked docs in order.
+AquaMind has two entry points: an OpenClaw agent reached through WhatsApp, and a React dashboard backed by FastAPI. Both can use the telemetry API, while their chat and code-execution paths remain separate.
 
-If you only have a **copy** of `AGENTS.md` / `TOOLS.md` under `%USERPROFILE%\.openclaw\workspace\`, open this same document from your **git clone**: `docs/ARCHITECTURE.md` at the repo root (relative links inside copied templates assume the repo tree).
+## Telemetry pipeline
 
-## Reading order (minimum context to implement or extend)
+Four CSV exports are loaded by `scripts/etl/build_database.py`. The pipeline keeps raw source rows, normalizes events, adds quality flags, and derives profiles, baselines, motif patterns, and anomaly candidates in `data/aquamind.sqlite`.
 
-1. This file (`docs/ARCHITECTURE.md`) — end-to-end flow and responsibilities.
-2. [`docs/SQLITE_BACKEND.md`](SQLITE_BACKEND.md) — how CSVs become SQLite, trusted vs raw, derived tables.
-3. [`docs/AGENT_DATA_RULES.md`](AGENT_DATA_RULES.md) — what the model may claim vs must caveat.
-4. [`openclaw/workspace-templates/TOOLS.md`](../openclaw/workspace-templates/TOOLS.md) — **concrete tool contracts**: FastAPI routes, PowerShell examples, Gmail CLI, Daytona runner.
-5. [`openclaw/workspace-templates/AGENTS.md`](../openclaw/workspace-templates/AGENTS.md) — **agent execution policy** (when to use HTTP vs sandbox vs Gmail).
-6. [`backend/main.py`](../backend/main.py) — authoritative list of HTTP routes and behavior.
-
-Optional deeper data narrative: [`docs/BEGINNER_DATA_GUIDE.md`](BEGINNER_DATA_GUIDE.md), [`docs/DATA_INVENTORY.md`](DATA_INVENTORY.md).
-
-## End-to-end data flow
+FastAPI exposes these results through `/dashboard/summary` and `/tools/*`. The dashboard's Insights tab calls the same analytics endpoints described to OpenClaw in the workspace tool instructions. Queries use the local warehouse rather than asking a language model to calculate from CSV text.
 
 ```mermaid
 flowchart LR
-  subgraph userChannel [User]
-    WA[WhatsApp]
-  end
-  subgraph openclawHost [Gateway host same machine as tools]
-    OC[OpenClaw gateway]
-    MM[MiniMax via OpenRouter]
-  end
-  subgraph tools [Deterministic tools]
-    API[FastAPI backend]
-    DAY[Daytona runner CLI]
-    GMAIL[Gmail report CLI]
-  end
-  subgraph data [Data]
-    CSV[Root CSV exports]
-    ETL[scripts/etl/build_database.py]
-    DB[(data/aquamind.sqlite)]
-  end
-  WA --> OC
-  OC --> MM
-  MM -->|"Invoke-RestMethod JSON"| API
-  MM -->|"stdin Python"| DAY
-  MM -->|"stdin JSON"| GMAIL
-  CSV --> ETL
-  ETL --> DB
-  API --> DB
+    CSV[CSV exports] --> ETL[Normalize and validate]
+    ETL --> DB[(SQLite warehouse)]
+    DB --> API[FastAPI analytics]
+    API --> UI[Dashboard Insights]
+    API --> OC[OpenClaw analytics tools]
 ```
 
-- **User** talks on WhatsApp → **OpenClaw** runs the agent → **MiniMax** decides which tool to call.
-- **Telemetry numbers** (aggregates, comparisons, motifs, anomaly rows, guarded SQL) must come from the **FastAPI** service reading **`data/aquamind.sqlite`**, not from the model guessing over raw CSV text.
-- **Dashboard `POST /run` (SSE):** when `data/aquamind.sqlite` exists and `AQUAMIND_CHAT_SQLITE_FIRST` is not `false`, the server first asks OpenRouter for a **JSON tool plan** (`query_metrics`, `compare_sources`, `find_motifs`, `detect_anomalies`, or guarded `run_sql`), then **executes it on SQLite** and streams the same SSE shape (`sandbox_id` `sqlite:local`, `stdout` = full `ToolResponse` JSON). Only if that fails or the planner returns `"route":"daytona"` does it fall back to **Daytona Python** generation.
-- **Charts / matplotlib** run in **Daytona** via `scripts/aquamind_daytona_runner_cli.py` (sandbox), not inside FastAPI unless you add that later.
-- **Gmail** is still the existing **CLI** (`scripts/aquamind_gmail_report_cli.py`); FastAPI `/health` only reports whether Gmail-related env vars look set.
-
-## SQLite lifecycle (not “data only in git”)
-
-1. Root CSVs (`customer*_consumption.csv`, `gym_consumption_data.csv`) are in the repo.
-2. **`python scripts/etl/build_database.py`** (from repo root) builds **`data/aquamind.sqlite`** (gitignored except `data/.gitkeep`).
-3. **`python scripts/validate_db.py`** sanity-checks counts and key tables.
-4. Start **`scripts/start-aquamind-backend.ps1`** so FastAPI serves read-only queries against that file.
-
-If `aquamind.sqlite` is missing, `GET /health` returns `db_exists: false` and the agent should tell the user to run the ETL step above.
-
-## OpenClaw workspace (critical)
-
-Templates in **`openclaw/workspace-templates/`** are **not** automatically what the live gateway reads. After editing templates in git, refresh the live workspace on the gateway machine:
+The database is generated output and is not committed. Rebuild it from the repository root:
 
 ```powershell
-Copy-Item -Path .\openclaw\workspace-templates\* -Destination "$env:USERPROFILE\.openclaw\workspace" -Force
+python scripts\etl\build_database.py
+python scripts\validate_db.py
 ```
 
-The agent’s behavior is governed by **`AGENTS.md`** + **`TOOLS.md`** in that live folder.
+[Schema and cleaning](SQLITE_BACKEND.md), [source mapping](NORMALIZED_MAPPING.md), [interpretation rules](AGENT_DATA_RULES.md)
 
-## Environment variables (summary)
+## WhatsApp agent
 
-| Variable | Role |
-|----------|------|
-| `OPENROUTER_API_KEY` | Model access (OpenClaw). |
-| `DAYTONA_API_KEY` | Daytona runner. |
-| `GMAIL_*` | Gmail CLI OAuth paths and sender/recipient. |
-| `AQUAMIND_DB_PATH` | Optional override path to `aquamind.sqlite`. |
-| `AQUAMIND_API_BASE` | Optional; agent docs default to `http://127.0.0.1:8765` if unset. |
-| `AQUAMIND_CORS_ORIGINS` | Comma list for FastAPI CORS (defaults include common Vite dev ports). |
-| `AQUAMIND_CHAT_SQLITE_FIRST` | If `true` (default), `POST /run` prefers real SQLite tool plans before Daytona. |
+OpenClaw manages the WhatsApp session and the agent's workspace. The configuration patch defines its OpenRouter model chain, provider preference, timeouts, and channel behavior. Workspace templates define tool contracts and how to interpret the telemetry.
 
-See [`.env.example`](../.env.example) for the full list.
+The agent can query the analytics API, run Python through `aquamind_daytona_runner_cli.py`, or request an incident report through `aquamind_gmail_report_cli.py`. The runners return structured JSON. Gmail additionally requires OAuth and records sends in a local SQLite log.
 
-## Branch-specific note
+The gateway configuration and account credentials live under the user's OpenClaw directory. Repository patches are inputs to that configuration, not a copy of the live account session. [Bootstrap and operation](../openclaw/README-WHATSAPP.md), [tool contracts](../openclaw/workspace-templates/TOOLS.md)
 
-Integration described here matches branches that include:
+## Dashboard chat
 
-- `scripts/etl/` and `docs/SQLITE_BACKEND.md`
-- `backend/` FastAPI package
-- Updated `openclaw/workspace-templates/AGENTS.md` and `TOOLS.md`
+`POST /run` in `backend/chat.py` returns SSE events. Local heuristics in `backend/intent.py` select a fast, balanced, or heavy route:
 
-If you are on **`main`** only, confirm whether FastAPI and ETL are merged before assuming paths above exist.
+1. Fast conversational requests call the chat model and return text without executing Python.
+2. Other requests use the code-generation model chain to produce Python.
+3. Daytona executes the code in a sandbox. The backend collects stdout and chart output, then deletes the sandbox.
+4. A failed attempt can feed its code and execution error back to the model. The loop is limited to three attempts.
 
-## Planned extension (not required for first test)
+The frontend renders progress, model output, Python, sandbox results, repairs, and completion from the event stream. It uses `fetch` and a readable response stream because the request includes a POST body. [Event contract](../frontend/README.md)
 
-- **`POST /tools/ingest_csv`** (future): accept validated CSV + profile, load into `raw_*` tables, refresh normalized data so agents can update telemetry without shell access. Documented as a stub in `TOOLS.md` until implemented.
+### SQLite planner status
 
-## Security reminders
+`backend/chat_data.py` implements a planner that selects a telemetry tool or guarded SQL, executes against SQLite, and can request a Daytona fallback. It is not wired into the current `/run` handler. Setting `AQUAMIND_CHAT_SQLITE_FIRST` does not enable it through that handler.
 
-- Never commit `.env`, OAuth secrets, or generated `data/*.sqlite`.
-- `POST /tools/run_sql_readonly` is **read-only** and keyword-guarded; it is not a general SQL write surface.
+SQLite-backed Insights and direct analytics tools are available independently. A general chat or generated chart should not be described as database-grounded unless it was supplied the relevant query results.
+
+## Model configuration
+
+OpenClaw and FastAPI have separate model configuration paths. The OpenClaw JSON5 patch defines its primary and fallback chain. FastAPI uses chat, planner, and code roles from `backend/openrouter_client.py`, with environment overrides and retry/fallback behavior.
+
+The `/health` response reports configured roles, heuristic routing, and database status. It does not prove that every configured provider is currently reachable. Per-request events identify the model used when a completion succeeds.
+
+## Local services and external APIs
+
+SQLite and FastAPI run locally. The Vite development server proxies `/api` to FastAPI on port 8765. OpenRouter handles model requests, Daytona handles sandbox execution, and Gmail handles requested email delivery.
+
+Secrets stay in local environment files and OAuth storage. The API targets local use; CORS configuration and a read-only SQL guard do not replace authentication if it is exposed beyond the development machine.
